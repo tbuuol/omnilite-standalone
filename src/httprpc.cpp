@@ -23,9 +23,11 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <stdexcept>
+#include <vector>
 
 // OmniLite's registration functions (Core's rpc/register.h).
 void RegisterOmniDataRetrievalRPCCommands(CRPCTable& tableRPC);
@@ -40,6 +42,15 @@ const std::set<std::string> PASSTHROUGH_METHODS = {
     "getnetworkinfo", "validateaddress", "estimatesmartfee",
 };
 
+namespace {
+std::set<std::string> g_sendingMethods;
+} // namespace
+
+const std::set<std::string>& SendingMethods()
+{
+    return g_sendingMethods;
+}
+
 void RegisterOmniRPCCommands()
 {
     static bool registered = false;
@@ -48,7 +59,11 @@ void RegisterOmniRPCCommands()
     RegisterOmniDataRetrievalRPCCommands(tableRPC);
     RegisterOmniPayloadCreationRPCCommands(tableRPC);
     RegisterOmniRawTransactionRPCCommands(tableRPC);
+    const std::vector<std::string> before = tableRPC.listCommands();
     RegisterOmniTransactionCreationRPCCommands(tableRPC); // through the node's wallet, src/nodewallet.cpp
+    for (const std::string& name : tableRPC.listCommands()) {
+        if (std::find(before.begin(), before.end(), name) == before.end()) g_sendingMethods.insert(name);
+    }
     // Listed for help; answered in Execute, also while loading.
     static const CRPCCommand status{"omnilite", "omnilite_getstatus", &omnilite_getstatus, {}};
     tableRPC.appendCommand(status.name, &status);
@@ -84,8 +99,11 @@ void JSONErrorReply(evhttp_request* req, const UniValue& objError, const UniValu
 }
 
 /** A command of the table, or one passed on to the node. */
-UniValue Execute(const JSONRPCRequest& jreq, const RPCClient* node)
+UniValue Execute(const JSONRPCRequest& jreq, const RPCClient* node, bool send)
 {
+    if (!send && SendingMethods().count(jreq.strMethod)) {
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, jreq.strMethod + " is switched off (-apisend=0)");
+    }
     // The status needs neither the loaded state nor cs_main: it answers while
     // OmniLite loads and while a block is processed.
     if (jreq.strMethod == "omnilite_getstatus") {
@@ -110,12 +128,12 @@ UniValue Execute(const JSONRPCRequest& jreq, const RPCClient* node)
 }
 
 /** As JSONRPCExecOne in Core's rpc/server.cpp, with Execute. */
-UniValue ExecOne(JSONRPCRequest jreq, const UniValue& req, const RPCClient* node)
+UniValue ExecOne(JSONRPCRequest jreq, const UniValue& req, const RPCClient* node, bool send)
 {
     UniValue rpc_result(UniValue::VOBJ);
     try {
         jreq.parse(req);
-        UniValue result = Execute(jreq, node);
+        UniValue result = Execute(jreq, node, send);
         rpc_result = JSONRPCReplyObj(result, NullUniValue, jreq.id);
     } catch (const UniValue& objError) {
         rpc_result = JSONRPCReplyObj(NullUniValue, objError, jreq.id);
@@ -263,11 +281,11 @@ void APIServer::Handle(evhttp_request* req)
         std::string strReply;
         if (valRequest.isObject()) {
             jreq.parse(valRequest);
-            UniValue result = Execute(jreq, m_node);
+            UniValue result = Execute(jreq, m_node, m_options.send);
             strReply = JSONRPCReply(result, NullUniValue, jreq.id);
         } else if (valRequest.isArray()) {
             UniValue ret(UniValue::VARR);
-            for (size_t i = 0; i < valRequest.size(); ++i) ret.push_back(ExecOne(jreq, valRequest[i], m_node));
+            for (size_t i = 0; i < valRequest.size(); ++i) ret.push_back(ExecOne(jreq, valRequest[i], m_node, m_options.send));
             strReply = ret.write() + "\n";
         } else {
             throw JSONRPCError(RPC_PARSE_ERROR, "Top-level object parse error");

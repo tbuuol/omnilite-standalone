@@ -78,6 +78,11 @@ im Cookie `~/.omnilite-standalone/<netz>/.cookie`, das z. B. `litecoin-cli` lese
 litecoin-cli -rpcport=9432 -rpccookiefile=$HOME/.omnilite-standalone/main/.cookie omni_getinfo
 ```
 
+Mit `apisend=0` beantwortet die API keinen `omni_send*`-Aufruf (auch nicht `omni_funded_*`,
+`omni_sendrawtx`, `omni_setnonfungibledata` und die versteckten Aktivierungs- und Alert-Aufrufe): Wer das
+Login hat, kann dann nichts aus der Wallet des `litecoind` ausgeben. Für einen Dienst, der nur liest, z. B.
+neben einer Website oder einer anderen Anwendung.
+
 Konfiguration: `~/.omnilite-standalone/omnilite-standalone.conf`, Vorlage in
 [omnilite-standalone.conf.example](omnilite-standalone.conf.example). Ohne `rpcpassword` wird das Cookie
 von `litecoind` gelesen (`~/.litecoin/.cookie`, bei Testnet und Regtest im Unterordner).

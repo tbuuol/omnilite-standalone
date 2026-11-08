@@ -30,6 +30,9 @@ extern const std::set<std::string> PASSTHROUGH_METHODS;
 /** Puts OmniLite's omni_* commands into tableRPC. Once, before Start. */
 void RegisterOmniRPCCommands();
 
+/** The calls that sign and broadcast through the node's wallet (omni_send*, omni_funded_*, ...), once registered. */
+const std::set<std::string>& SendingMethods();
+
 struct APIOptions {
     std::string bind = "127.0.0.1";
     int port = 0; // 0: any free port (tests)
@@ -37,6 +40,8 @@ struct APIOptions {
     /** Empty: a random cookie is written to cookieFile. */
     std::string password;
     fs::path cookieFile;
+    /** false: SendingMethods() are refused, so the API cannot spend from the node's wallet. */
+    bool send = true;
 };
 
 class APIServer

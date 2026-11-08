@@ -221,6 +221,43 @@ BOOST_AUTO_TEST_CASE(passthrough)
     BOOST_CHECK_EQUAL(Request(alone.Port(), R"({"method":"getblockcount","id":1})").status, 404);
 }
 
+BOOST_AUTO_TEST_CASE(no_send)
+{
+    RegisterOmniRPCCommands();
+    FinishWarmup();
+    // The calls that spend through the node's wallet, and only those.
+    BOOST_CHECK(SendingMethods().count("omni_send"));
+    BOOST_CHECK(SendingMethods().count("omni_senddexpay"));
+    BOOST_CHECK(SendingMethods().count("omni_funded_sendall"));
+    BOOST_CHECK(SendingMethods().count("omni_sendalert"));
+    BOOST_CHECK(SendingMethods().count("omni_setnonfungibledata"));
+    BOOST_CHECK(!SendingMethods().count("omni_getinfo"));
+    BOOST_CHECK(!SendingMethods().count("omni_createpayload_simplesend"));
+    BOOST_CHECK(!SendingMethods().count("omni_createrawtx_opreturn"));
+
+    APIOptions o = PasswordOptions();
+    o.send = false;
+    APIServer api(o, nullptr);
+    api.Start();
+
+    // Refused before OmniLite sees them, alone and in a batch.
+    HTTPResult r = Request(api.Port(), R"({"method":"omni_send","params":[],"id":1})");
+    BOOST_CHECK_EQUAL(r.status, 404);
+    UniValue error = find_value(Parse(r.body), "error");
+    BOOST_CHECK_EQUAL(find_value(error, "code").get_int(), RPC_METHOD_NOT_FOUND);
+    BOOST_CHECK(find_value(error, "message").get_str().find("-apisend=0") != std::string::npos);
+    r = Request(api.Port(), R"([{"method":"omni_funded_send","id":1},{"method":"uptime","id":2}])");
+    UniValue batch = Parse(r.body);
+    BOOST_REQUIRE_EQUAL(batch.size(), 2u);
+    BOOST_CHECK_EQUAL(find_value(find_value(batch[0], "error"), "code").get_int(), RPC_METHOD_NOT_FOUND);
+    BOOST_CHECK(find_value(batch[1], "result").isNum()); // the other calls still answer
+
+    // With the default, omni_send reaches OmniLite (here: its argument check).
+    APIServer sending(PasswordOptions(), nullptr);
+    sending.Start();
+    BOOST_CHECK_EQUAL(Request(sending.Port(), R"({"method":"omni_send","params":[],"id":1})").status, 500);
+}
+
 BOOST_AUTO_TEST_CASE(passthrough_node_errors)
 {
     RegisterOmniRPCCommands();

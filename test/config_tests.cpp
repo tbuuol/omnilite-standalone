@@ -46,6 +46,7 @@ BOOST_AUTO_TEST_CASE(defaults)
     BOOST_CHECK_EQUAL(cfg.RPCURL(), "http://127.0.0.1:9332");
     BOOST_CHECK_EQUAL(cfg.pollInterval, 5);
     BOOST_CHECK_EQUAL(cfg.undoDepth, 100);
+    BOOST_CHECK(cfg.apiSend);
     BOOST_CHECK_EQUAL(cfg.DBPath(), dir.path + "/main/index");
 }
 
@@ -58,6 +59,7 @@ BOOST_AUTO_TEST_CASE(file_and_flags)
         "rpcuser=omni   # trailing comment\n"
         "rpcpassword=secret\n"
         "pollinterval=7\n"
+        "apisend=0\n"
         "omnialertallowsender = a, b\n");
     Config cfg = LoadConfig({"-datadir=" + dir.path, "--pollinterval=2", "-check"});
     BOOST_CHECK_EQUAL(cfg.network, "regtest");
@@ -65,6 +67,7 @@ BOOST_AUTO_TEST_CASE(file_and_flags)
     BOOST_CHECK_EQUAL(cfg.rpcPort, 19443);
     BOOST_CHECK_EQUAL(cfg.pollInterval, 2); // the flag wins
     BOOST_CHECK(cfg.check);
+    BOOST_CHECK(!cfg.apiSend);
     BOOST_CHECK(cfg.alertAllowSenders == std::vector<std::string>({"a", "b"}));
     BOOST_CHECK(cfg.activationAllowSenders.empty());
     BOOST_CHECK(cfg.Credentials() == std::make_pair(std::string("omni"), std::string("secret")));

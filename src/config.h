@@ -53,6 +53,8 @@ struct Config {
     std::string apiUser;
     /** Empty: a cookie file is written at start-up, see APICookieFile. */
     std::string apiPassword;
+    /** The omni_send* calls, signed and broadcast by the node's wallet. */
+    bool apiSend = true;
 
     bool check = false;
     bool status = false;

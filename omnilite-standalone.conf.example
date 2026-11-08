@@ -41,3 +41,5 @@ rpcconnect=127.0.0.1
 # Without apipassword a new cookie is written at start-up: <datadir>/<network>/.cookie
 #apiuser=
 #apipassword=
+# 0: no omni_send* calls, so whoever has the login cannot spend from litecoind's wallet.
+#apisend=1

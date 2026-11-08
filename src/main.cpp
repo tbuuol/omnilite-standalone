@@ -247,12 +247,14 @@ int Run(const Config& cfg)
             apiOptions.user = cfg.apiUser;
             apiOptions.password = cfg.apiPassword;
             apiOptions.cookieFile = cfg.APICookieFile();
+            apiOptions.send = cfg.apiSend;
             fs::create_directories(fs::path(cfg.APICookieFile()).parent_path());
             api = std::make_unique<APIServer>(apiOptions, &node);
             api->Start();
             if (cfg.apiBind != "127.0.0.1" && cfg.apiBind != "::1" && cfg.apiBind != "localhost") {
                 LogWarn("the API listens on %s: anyone who can reach it and knows the login sees your Omni data", cfg.apiBind);
             }
+            if (!cfg.apiSend) LogInfo("-apisend=0: the API answers no omni_send* calls, it cannot spend from the node's wallet");
         }
 
         processor.Start(cfg.OmniDataDir(), OptionsOf(cfg));

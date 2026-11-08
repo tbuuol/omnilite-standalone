@@ -21,7 +21,7 @@ const std::set<std::string> SETTINGS = {
     "network", "rpcconnect", "rpcport", "rpcuser", "rpcpassword", "rpccookiefile",
     "pollinterval", "undodepth",
     "omniactivationallowsender", "omnialertallowsender", "omnidebug",
-    "api", "apibind", "apiport", "apiuser", "apipassword",
+    "api", "apibind", "apiport", "apiuser", "apipassword", "apisend",
 };
 
 /** The API listens 100 above the node's default port: 9432, test 19432, regtest 19543. */
@@ -249,6 +249,7 @@ Config LoadConfig(const std::vector<std::string>& args)
     if (cfg.apiPort > 65535) throw ConfigError("apiport: want at most 65535");
     cfg.apiUser = values["apiuser"];
     cfg.apiPassword = values["apipassword"];
+    if (values.count("apisend")) cfg.apiSend = ParseBool("apisend", values["apisend"]);
     if (!cfg.apiPassword.empty() && cfg.apiUser.empty()) throw ConfigError("apipassword is set but apiuser is not");
     return cfg;
 }
@@ -285,6 +286,7 @@ std::string HelpMessage()
       << "  -apiport=<port>     API port (default: 9432, test 19432, regtest 19543)\n"
       << "  -apiuser=<user>     API user\n"
       << "  -apipassword=<pw>   API password (default: a new cookie in <datadir>/<net>/.cookie)\n"
+      << "  -apisend=<0|1>      answer omni_send* and the other calls that spend from litecoind's wallet (default: 1)\n"
       << "\nEvery option except -check, -status, the snapshot options, -datadir and -conf can also be set in the config file.\n";
     return s.str();
 }
