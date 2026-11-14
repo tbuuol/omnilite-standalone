@@ -22,6 +22,10 @@ rpcconnect=127.0.0.1
 # Blocks of undo data kept for reorgs (minimum 10).
 #undodepth=100
 
+# Threads that read blocks ahead from the node while syncing (0 = off). Only blocks deeper
+# than undodepth (at least 100) are read ahead.
+#prefetch=4
+
 # Regtest only: extra senders allowed to send feature activations and alerts
 # (OmniLite's -omniactivationallowsender / -omnialertallowsender), comma-separated.
 # This changes the computed state, so never set it on mainnet.

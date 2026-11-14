@@ -24,6 +24,7 @@ Rückkehr zu einem gesicherten State bei Reorgs (`RewindDBsAndState`, `msc_initi
 | `parsing.h` | `<stdint.h>` ergänzt (das Original verlässt sich auf vorher eingebundene Header) |
 | `nftdb.h` | `<map>`, `<string>`, `<vector>` ergänzt; `std::filesystem` statt `boost::filesystem` |
 | `persistence.h/.cpp`, `sp.cpp` | `<fs.h>` (`std::filesystem`) statt `<boost/filesystem.hpp>` |
+| `persistence.cpp` | `IsPersistenceEnabled` misst den Abstand zum Tip an `g_bestHeaderHeight` (Höhe der Node, vom Syncer), wie Core im Initial-Download an `pindexBestHeader`. Sonst wird auf Mainnet nach jedem Block der ganze State geschrieben (`DONT_STORE_MAINNET_STATE_UNTIL` = 2 000 000 liegt vor dem Omni-Genesis-Block). Nicht konsensrelevant: betrifft nur, wann der State als Datei gesichert wird |
 | `encoding.cpp` | `GetRand(256)` → `std::random_device` (nur die Wahl des letzten Bytes der Class-B-Schlüssel, nicht konsensrelevant) |
 | `rpc.cpp` | `omni_setautocommit`, `omni_listtransactions`, `omni_getwalletbalances`, `omni_getwalletaddressbalances` und die Wallet für `ismine` auch ohne `ENABLE_WALLET`; `getWalletAddresses` fragt die Node-Wallet nach ihren Adressen; `omni_listtransactions` ohne Node leer statt Null-Zeiger |
 | `rpcrawtx.cpp` | Wallet für `ismine` in `omni_decodetransaction` auch ohne `ENABLE_WALLET` |
