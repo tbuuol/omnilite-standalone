@@ -152,6 +152,7 @@ add_library(omnilite STATIC
   src/omnicore/version.cpp
   src/rpcclient.cpp
   src/store.cpp
+  src/prefetch.cpp
   src/syncer.cpp)
 target_include_directories(omnilite PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/src/coreshim)
 target_include_directories(omnilite SYSTEM PUBLIC ${LEVELDB_INCLUDE_DIR})
@@ -177,6 +178,7 @@ add_executable(test_omnilite
   test/httprpc_tests.cpp # first: its warmup test needs a fresh process
   test/config_tests.cpp
   test/core_tests.cpp
+  test/decode_tests.cpp
   test/indexer_tests.cpp
   test/rpcclient_tests.cpp
   test/store_tests.cpp

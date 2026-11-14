@@ -39,6 +39,8 @@ struct Config {
     int pollInterval = 5;
     /** Blocks of undo data kept for reorgs. */
     int undoDepth = 100;
+    /** Threads reading blocks ahead while syncing (0 = off). */
+    int prefetch = 4;
 
     // OmniLite's -omniactivationallowsender, -omnialertallowsender (they change
     // the state; for regtest only) and -omnidebug.

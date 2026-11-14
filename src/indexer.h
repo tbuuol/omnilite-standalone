@@ -24,8 +24,20 @@
 class CBlockIndex;
 class RPCClient;
 
-/** Decodes a transaction from hex as Litecoin Core 0.18 serializes it; throws on failure. */
+/**
+ * Decodes a transaction from hex; throws on failure. Takes Litecoin Core 0.18
+ * and 0.21 serialization: a HogEx transaction (MWEB flag without MWEB data)
+ * becomes the plain transaction older nodes see. Real MWEB data throws.
+ */
 CTransactionRef DecodeTx(const std::string& hex);
+
+/**
+ * The transactions of a raw block as getblock with verbosity 0 returns it
+ * (Litecoin 0.18 or 0.21, the MWEB block after the transactions is ignored).
+ * False if a transaction carries MWEB data that cannot be skipped; then the
+ * caller has to fall back to the verbose block.
+ */
+bool DecodeBlockTxs(const std::vector<unsigned char>& block, const std::string& hash, std::vector<CTransactionRef>& txs);
 
 /** What the indexer needs from the node. Failures to reach it throw NodeError. */
 class NodeData

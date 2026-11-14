@@ -8,6 +8,7 @@
 
 #include <logging.h>
 #include <rpcclient.h>
+#include <validation.h>
 
 #include <thread>
 
@@ -82,6 +83,7 @@ bool Syncer::Step()
     if (next > m_nodeHeight) {
         m_nodeHeight = m_source.GetBlockCount();
         GetSyncStatus().SetNodeHeight(m_nodeHeight);
+        g_bestHeaderHeight = static_cast<int>(m_nodeHeight);
     }
     if (next > m_nodeHeight) {
         // Caught up. Make sure our tip is still the node's block at that

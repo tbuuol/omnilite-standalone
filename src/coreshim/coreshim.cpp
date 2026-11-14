@@ -161,6 +161,7 @@ std::unique_ptr<TxIndex> g_txindex = std::make_unique<TxIndex>();
 std::function<bool(const CBlockIndex*, CBlock&)> g_readBlock;
 std::function<bool(const uint256&, CTransactionRef&, uint256&)> g_getTransaction;
 std::function<std::vector<CTransactionRef>(const uint256&)> g_blockTxs;
+std::atomic<int> g_bestHeaderHeight(-1);
 
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params&)
 {

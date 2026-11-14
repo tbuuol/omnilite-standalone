@@ -463,6 +463,11 @@ bool IsPersistenceEnabled(int blockHeight)
         nMinHeight = GetHeight();
     }
 
+    // Standalone: the top is the node's best block, as in Core during the
+    // initial download. Otherwise the whole state is written after every
+    // block on mainnet (DONT_STORE_MAINNET_STATE_UNTIL is long passed).
+    nMinHeight = std::max(nMinHeight, g_bestHeaderHeight.load());
+
     // if too far away from the top -- do not write
     if (nMinHeight > (blockHeight + MAX_STATE_HISTORY)
             && (blockHeight % STORE_EVERY_N_BLOCK != 0)) {

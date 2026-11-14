@@ -11,6 +11,7 @@
 #include <mempool.h>
 #include <pubkey.h>
 #include <rpc/server.h>
+#include <prefetch.h>
 #include <rpcclient.h>
 #include <shutdown.h>
 #include <snapshot.h>
@@ -228,8 +229,17 @@ int Run(const Config& cfg)
 
         CStore store(cfg.DBPath(), Params().NetworkIDString(), cfg.undoDepth);
         GetSyncStatus().SetTip(store.Tip()); // for omnilite_getstatus while OmniLite loads
-        RPCChainSource source(node);
-        RPCNodeData nodeData(node);
+        RPCChainSource rpcSource(node);
+        RPCNodeData rpcData(node);
+        // Far from the tip, blocks are read ahead in parallel; only blocks
+        // deeper than any reorg the store can undo.
+        std::unique_ptr<BlockPrefetcher> prefetcher;
+        if (cfg.prefetch > 0) {
+            prefetcher = std::make_unique<BlockPrefetcher>(node, rpcSource, rpcData, cfg.prefetch, 16 * cfg.prefetch,
+                std::max(cfg.undoDepth, 100) + 1);
+        }
+        ChainSource& source = prefetcher ? static_cast<ChainSource&>(*prefetcher) : rpcSource;
+        NodeData& nodeData = prefetcher ? static_cast<NodeData&>(*prefetcher) : rpcData;
         OmniIndexer processor(nodeData, store);
         // OmniLite logs at debug level; -omnidebug only makes sense if that is shown.
         if (!cfg.omniDebug.empty()) SetLogLevel(LogLevel::Debug);

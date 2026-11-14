@@ -56,4 +56,8 @@ extern std::function<bool(const uint256&, CTransactionRef&, uint256&)> g_getTran
  *  g_readBlock without the replay of OmniLite (its cache stays as it is). */
 extern std::function<std::vector<CTransactionRef>(const uint256&)> g_blockTxs;
 
+/** Height of the node's best block (Core: pindexBestHeader), -1 while unknown; set by the syncer.
+ *  OmniLite stores its full state only near this height (persistence.cpp). */
+extern std::atomic<int> g_bestHeaderHeight;
+
 #endif // OMNILITE_STANDALONE_CORESHIM_VALIDATION_H

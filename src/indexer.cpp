@@ -6,6 +6,7 @@
 
 #include <chain.h>
 #include <chainparams.h>
+#include <hash.h>
 #include <logging.h>
 #include <omnicore/omnicore.h>
 #include <omnicore/parsing.h>
@@ -24,10 +25,117 @@ int mastercore_handler_block_end(int nBlockNow, CBlockIndex const* pBlockIndex, 
 bool mastercore_handler_tx(const CTransaction& tx, int nBlock, unsigned int idx, CBlockIndex const* pBlockIndex, std::shared_ptr<std::map<COutPoint, Coin>> removedCoins);
 void mastercore_handler_disc_begin(const int nHeight);
 
-CTransactionRef DecodeTx(const std::string& hex)
+namespace {
+
+/** Thrown for a transaction with real MWEB data, which has no length we could skip. */
+struct MwebData : std::runtime_error {
+    MwebData() : std::runtime_error("transaction carries MWEB data") {}
+};
+
+/** Bounds-checked reader over serialized data. */
+struct Reader {
+    const unsigned char* p;
+    const unsigned char* end;
+    void Need(uint64_t n) const
+    {
+        if (n > static_cast<uint64_t>(end - p)) throw std::runtime_error("unexpected end of data");
+    }
+    unsigned char Byte()
+    {
+        Need(1);
+        return *p++;
+    }
+    void Skip(uint64_t n)
+    {
+        Need(n);
+        p += n;
+    }
+    uint64_t CompactSize()
+    {
+        unsigned char c = Byte();
+        int len = c < 253 ? 0 : c == 253 ? 2 : c == 254 ? 4 : 8;
+        if (len == 0) return c;
+        Need(len);
+        uint64_t v = 0;
+        for (int i = 0; i < len; ++i) v |= static_cast<uint64_t>(p[i]) << (8 * i);
+        p += len;
+        return v;
+    }
+};
+
+/**
+ * Reads one transaction in Litecoin 0.21 serialization (UnserializeTransaction
+ * in primitives/transaction.h) and appends it to out as Litecoin 0.18 writes
+ * it: the MWEB flag of a HogEx transaction and its empty MWEB part are dropped,
+ * as for peers without MWEB. Throws MwebData for real MWEB data.
+ */
+void ReadTx018(Reader& r, std::vector<unsigned char>& out)
 {
-    if (!IsHex(hex)) throw std::runtime_error("transaction is not hex");
-    std::vector<unsigned char> data = ParseHex(hex);
+    const unsigned char* start = r.p;
+    r.Skip(4); // nVersion
+    const unsigned char* flagPos = nullptr;
+    unsigned char flags = 0;
+    uint64_t nIn = r.CompactSize();
+    auto inputs = [&](uint64_t n) {
+        for (uint64_t i = 0; i < n; ++i) {
+            r.Skip(36);              // prevout
+            r.Skip(r.CompactSize()); // scriptSig
+            r.Skip(4);               // nSequence
+        }
+    };
+    auto outputs = [&] {
+        uint64_t n = r.CompactSize();
+        for (uint64_t i = 0; i < n; ++i) {
+            r.Skip(8);               // nValue
+            r.Skip(r.CompactSize()); // scriptPubKey
+        }
+    };
+    if (nIn == 0) {
+        flagPos = r.p;
+        flags = r.Byte();
+        if (flags != 0) {
+            nIn = r.CompactSize();
+            inputs(nIn);
+            outputs();
+        }
+    } else {
+        inputs(nIn);
+        outputs();
+    }
+    if (flags & 1) {
+        for (uint64_t i = 0; i < nIn; ++i) {
+            uint64_t items = r.CompactSize();
+            for (uint64_t j = 0; j < items; ++j) r.Skip(r.CompactSize());
+        }
+    }
+    const unsigned char* mwebPos = r.p;
+    bool hogEx = false;
+    if (flags & 8) {
+        if (r.Byte() != 0) throw MwebData(); // OptionalPtr<mw::Transaction> is set
+        hogEx = true;
+    }
+    if (flags & ~9) throw std::runtime_error("unknown optional data in transaction");
+    r.Skip(4); // nLockTime
+    if (!hogEx) {
+        out.insert(out.end(), start, r.p);
+        return;
+    }
+    // HogEx: same bytes with the MWEB flag and its null byte removed; without
+    // a witness the marker and flag go away entirely.
+    const unsigned char rest = flags & 1;
+    out.insert(out.end(), start, flagPos - 1); // nVersion
+    if (rest) {
+        out.push_back(0);
+        out.push_back(rest);
+        out.insert(out.end(), flagPos + 1, mwebPos);
+    } else {
+        out.insert(out.end(), flagPos + 1, mwebPos);
+    }
+    out.insert(out.end(), mwebPos + 1, r.p); // nLockTime
+}
+
+CTransactionRef Decode018(const std::vector<unsigned char>& data)
+{
     CDataStream ss(data, SER_NETWORK, PROTOCOL_VERSION);
     CMutableTransaction mtx;
     ss >> mtx;
@@ -35,10 +143,72 @@ CTransactionRef DecodeTx(const std::string& hex)
     return MakeTransactionRef(std::move(mtx));
 }
 
+} // namespace
+
+CTransactionRef DecodeTx(const std::string& hex)
+{
+    if (!IsHex(hex)) throw std::runtime_error("transaction is not hex");
+    std::vector<unsigned char> data = ParseHex(hex);
+    Reader r{data.data(), data.data() + data.size()};
+    std::vector<unsigned char> tx;
+    ReadTx018(r, tx);
+    if (r.p != r.end) throw std::runtime_error("extra data after the transaction");
+    return Decode018(tx);
+}
+
+bool DecodeBlockTxs(const std::vector<unsigned char>& block, const std::string& hash, std::vector<CTransactionRef>& txs)
+{
+    if (block.size() < 80) throw std::runtime_error("block shorter than its header");
+    uint256 h;
+    CHash256().Write(block.data(), 80).Finalize(h.begin());
+    if (h.GetHex() != hash) throw std::runtime_error("block data hashes to " + h.GetHex() + ", expected " + hash);
+    Reader r{block.data() + 80, block.data() + block.size()};
+    uint64_t n = r.CompactSize();
+    txs.clear();
+    txs.reserve(n);
+    std::vector<unsigned char> tx;
+    for (uint64_t i = 0; i < n; ++i) {
+        tx.clear();
+        try {
+            ReadTx018(r, tx);
+        } catch (const MwebData&) {
+            return false;
+        }
+        try {
+            txs.push_back(Decode018(tx));
+        } catch (const std::exception& e) {
+            // As the verbose path: the position in the block still counts.
+            LogWarn("block %s: transaction %u skipped, not readable as Litecoin 0.18 (%s)", hash, (unsigned)i, e.what());
+            txs.push_back(nullptr);
+        }
+    }
+    // What follows is the MWEB block (Litecoin 0.21); OmniLite does not see it.
+    return true;
+}
+
 // --- RPCNodeData ---
 
 std::vector<CTransactionRef> RPCNodeData::GetBlockTxs(const std::string& hash)
 {
+    // The raw block is a fraction of the work for the node and for us; the
+    // verbose one stays as fallback for blocks with MWEB data in a transaction.
+    {
+        UniValue params(UniValue::VARR);
+        params.push_back(hash);
+        params.push_back(0);
+        std::string hex;
+        try {
+            hex = m_node.Call("getblock", params).get_str();
+        } catch (const RPCError& e) {
+            throw NodeError("getblock " + hash + ": " + e.what());
+        } catch (const NodeUnreachable& e) {
+            throw NodeError(e.what());
+        }
+        if (!IsHex(hex)) throw NodeError("getblock " + hash + ": not hex");
+        std::vector<CTransactionRef> txs;
+        if (DecodeBlockTxs(ParseHex(hex), hash, txs)) return txs;
+        LogWarn("block %s: MWEB data in a transaction, reading it verbosely", hash);
+    }
     UniValue params(UniValue::VARR);
     params.push_back(hash);
     params.push_back(2);

@@ -19,7 +19,7 @@ namespace {
 /** Keys allowed in the config file and as -key=value. */
 const std::set<std::string> SETTINGS = {
     "network", "rpcconnect", "rpcport", "rpcuser", "rpcpassword", "rpccookiefile",
-    "pollinterval", "undodepth",
+    "pollinterval", "undodepth", "prefetch",
     "omniactivationallowsender", "omnialertallowsender", "omnidebug",
     "api", "apibind", "apiport", "apiuser", "apipassword",
 };
@@ -239,6 +239,7 @@ Config LoadConfig(const std::vector<std::string>& args)
     cfg.rpcCookieFile = values["rpccookiefile"];
     if (values.count("pollinterval")) cfg.pollInterval = ParseInt("pollinterval", values["pollinterval"], 1);
     if (values.count("undodepth")) cfg.undoDepth = ParseInt("undodepth", values["undodepth"], 10);
+    if (values.count("prefetch")) cfg.prefetch = ParseInt("prefetch", values["prefetch"], 0);
     cfg.activationAllowSenders = SplitList(values["omniactivationallowsender"]);
     cfg.alertAllowSenders = SplitList(values["omnialertallowsender"]);
     cfg.omniDebug = SplitList(values["omnidebug"]);
@@ -277,6 +278,7 @@ std::string HelpMessage()
       << "  -rpccookiefile=<f>  litecoind cookie file (default: ~/.litecoin/[net/].cookie)\n"
       << "  -pollinterval=<s>   seconds between checks for new blocks and mempool transactions (default: 5)\n"
       << "  -undodepth=<n>      blocks of undo data kept for reorgs (default: 100)\n"
+      << "  -prefetch=<n>       threads reading blocks ahead while syncing, 0 = off (default: 4)\n"
       << "  -omniactivationallowsender=<a,b>  regtest only: extra senders of feature activations\n"
       << "  -omnialertallowsender=<a,b>       regtest only: extra senders of alerts\n"
       << "  -omnidebug=<a,b>    OmniLite debug categories, e.g. parser,tally or all\n"
